@@ -47,6 +47,7 @@ services:
       - SERVER_PORT=8000
       - SERVER_HOST=0.0.0.0
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OCR_SERVICE_URL=http://ocr:5000/ocr
     volumes:
       - ../a-tier-mcp-server/logs:/app/logs
       - ../a-tier-mcp-server/chroma_db:/app/chroma_db
