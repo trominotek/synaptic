@@ -1,110 +1,125 @@
-version: '3.8'
-
-name: synaptic
-
 services:
-  # PostgreSQL Database
-  postgres:
-    image: postgres:15-alpine
-    container_name: synaptic-postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ai_application
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_INITDB_ARGS: "--encoding=UTF-8"
+  agents:
+    image: synaptic-agents:${VERSION:-2025-08-22}
+    container_name: synaptic-agents
     ports:
-      - "5434:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ../a-tier-mcp-server/ddl.sql:/docker-entrypoint-initdb.d/01-ddl.sql:ro
-      - ../a-tier-mcp-server/enhanced_bank_schema.sql:/docker-entrypoint-initdb.d/02-enhanced_bank_schema.sql:ro
-      - ../a-tier-mcp-server/synthetic_loan_data.sql:/docker-entrypoint-initdb.d/03-synthetic_loan_data.sql:ro
+      - "8080:80"
+    depends_on:
+      - mcp-server
+      - doc-db
+    environment:
+      - NODE_ENV=production
+      - PORT=80
     networks:
       - synaptic-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d ai_application"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD-SHELL", "curl -f http://localhost:80 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
-  # A-Tier MCP Server
-  a-tier-mcp-server:
-    image: synaptic-a-tier-mcp-server:${VERSION:-latest}
-    container_name: synaptic-mcp-server
-    restart: unless-stopped
+  doc-db:
+    image: synaptic-doc-db:${VERSION:-2025-08-22}
+    container_name: synaptic-doc-db
     ports:
-      - "8002:8000"
+      - "8005:8005"
     environment:
+      - FLASK_ENV=production
+      - CHROMADB_PATH=/app/chromadb_data
+      - CORS_ORIGINS=http://localhost:8080,http://agents
+      - MCP_SERVER_PATH=/app/mcp-server
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/ai_application
       - DB_HOST=postgres
-      - DB_PORT=5432
       - DB_NAME=ai_application
       - DB_USER=postgres
       - DB_PASSWORD=postgres
-      - DB_SCHEMA=bank
-      - FLASK_ENV=production
-      - PYTHONUNBUFFERED=1
-      - SERVER_PORT=8000
-      - SERVER_HOST=0.0.0.0
+      - DB_PORT=5432
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - OCR_SERVICE_URL=http://ocr:5000/ocr
     volumes:
-      - ../a-tier-mcp-server/logs:/app/logs
-      - ../a-tier-mcp-server/chroma_db:/app/chroma_db
-      - ../ocr/test-images:/app/test-images:ro
+      # Mount host ChromaDB data directory to preserve existing data
+      - ../doc-db:/app/chromadb_data:rw
+      # Mount MCP server for API key management
+      - ../a-tier-mcp-server:/app/mcp-server:ro
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - synaptic-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8005/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
 
-  # Agents Frontend
-  agents:
-    image: synaptic-agents:${VERSION:-latest}
-    container_name: synaptic-agents
-    restart: unless-stopped
+  mcp-server:
+    image: synaptic-mcp-server:${VERSION:-2025-08-22}
+    container_name: synaptic-mcp-server
     ports:
-      - "80:8001"
+      - "8090:8000"
     environment:
-      - PORT=8001
-      - NODE_ENV=production
+      - FLASK_ENV=production
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/ai_application
+      - DB_HOST=postgres
+      - DB_NAME=ai_application
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_PORT=5432
+      - DB_SCHEMA=bank
+      - OCR_SERVICE_URL=http://ocr:5000/ocr
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    volumes:
+      - ../a-tier-mcp-server/logs:/app/logs
+      - ../a-tier-mcp-server/chroma_db:/app/chroma_db
     depends_on:
-      - a-tier-mcp-server
+      postgres:
+        condition: service_healthy
+      ocr:
+        condition: service_started
     networks:
       - synaptic-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8001/api/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
 
-  # OCR Service
   ocr:
-    image: synaptic-ocr:${VERSION:-latest}
+    image: synaptic-ocr:${VERSION:-2025-08-22}
     container_name: synaptic-ocr
-    restart: unless-stopped
     ports:
-      - "5001:5000"
+      - "5002:5000"
     environment:
       - FLASK_ENV=production
-      - PYTHONUNBUFFERED=1
+      - FLASK_DEBUG=false
+      - OCR_PORT=5000
     volumes:
       - ../ocr/test-images:/app/test-images:ro
     networks:
       - synaptic-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:5000/hello || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 30s
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: synaptic-postgres
+    environment:
+      - POSTGRES_DB=ai_application
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5435:5432"
+    networks:
+      - synaptic-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_data:

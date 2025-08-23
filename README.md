@@ -1,87 +1,151 @@
 # Synaptic
 
-A multi-service application with AI capabilities, OCR processing, and database management.
+A comprehensive multi-service AI application with RAG capabilities, OCR processing, and database management.
 
 ## Services
 
-- **PostgreSQL Database** (Port 5433): Banking database with customer, transaction, and fraud data
-- **A-Tier MCP Server** (Port 8002): Python Flask API with RAG chatbot and prompt management
-- **Agents Frontend** (Port 80): Angular application with Node.js backend
-- **OCR Service** (Port 5001): Python Flask API for document text extraction
+- **Agents Frontend** (Port 8080): Angular application with Node.js backend and RAG Chatbot UI
+- **Doc-DB RAG Service** (Port 8005): Advanced RAG system with ChromaDB and 399 aviation handbook chunks
+- **MCP Server** (Port 8090): Python Flask API with prompt management and API key handling  
+- **OCR Service** (Port 5002): Python Flask API for document text extraction
+- **PostgreSQL Database** (Port 5435): Banking database with customer, transaction, and fraud data
 
 ## Quick Start
 
-### 1. Build Images
+### 1. Full Build and Deploy (Recommended)
 ```bash
 cd synaptic
-./build-all.sh [version]
+bin/demo.sh
 ```
 
-### 2. Configure Environment
+### 2. Development Mode (Recommended for Development)
 ```bash
-cp .env.example .env
-# Edit .env as needed
+# Install dependencies first
+bin/dev.sh install
+
+# Start all services in development mode (outside containers)
+bin/dev.sh start
+
+# Check development service status
+bin/dev.sh status
+
+# Start individual services
+bin/dev.sh frontend    # Angular dev server on :4200
+bin/dev.sh mcp-server  # MCP server on :8000
+bin/dev.sh doc-db      # RAG service on :8005
+
+# Stop development services
+bin/dev.sh stop
 ```
 
-### 3. Start Services
+### 3. Docker Mode (For Production Testing)
 ```bash
-docker-compose up -d
+# Start all services with docker-compose
+bin/docker.sh start
+
+# Check service health
+bin/docker.sh health
+
+# View logs
+bin/docker.sh logs [service]
+
+# Stop services
+bin/docker.sh stop
 ```
 
 ### 4. Access Application
-- Frontend: http://localhost
-- MCP Server API: http://localhost:8002
-- OCR API: http://localhost:5001
 
-## Build Scripts
+#### Development Mode URLs:
+- **Frontend (dev)**: http://localhost:4200 (with hot reload)
+- **MCP Server**: http://localhost:8000
+- **OCR Service**: http://localhost:5000
+- **RAG API**: http://localhost:8005
+- **Database**: localhost:5435
 
-### Individual Service Builds
+#### Production Mode URLs:
+- **Frontend**: http://localhost:8080
+- **MCP Server**: http://localhost:8090
+- **OCR Service**: http://localhost:5002
+- **RAG API**: http://localhost:8005
+- **Database**: localhost:5435
+
+## Available Scripts
+
+### Deployment Scripts (`bin/` directory)
+
+#### `bin/demo.sh` - Full Build and Deploy
+- Builds all service images with date tags
+- Updates docker-compose.yml with new tags  
+- Deploys complete stack with database setup
+- Verifies service health
+
 ```bash
-# Build specific service
-cd a-tier-mcp-server && ./build.sh [version]
-cd agents && ./build.sh [version]
-cd ocr && ./build.sh [version]
+bin/demo.sh                 # Full build and deploy
+bin/demo.sh --cleanup       # Build, deploy, and cleanup old images
 ```
 
-### Master Build
+#### `bin/dev.sh` - Development Mode Helper  
+Runs services in development mode outside containers:
+
 ```bash
-cd synaptic
-./build-all.sh [version]
+bin/dev.sh install          # Install dependencies for all services
+bin/dev.sh start            # Start all services in dev mode
+bin/dev.sh stop             # Stop all dev services  
+bin/dev.sh status           # Show running processes
+bin/dev.sh frontend         # Start only frontend (Angular dev server)
+bin/dev.sh mcp-server       # Start only MCP server
+bin/dev.sh doc-db           # Start only RAG service
+bin/dev.sh ocr              # Start only OCR service
+bin/dev.sh clean            # Clean up development processes
 ```
 
-### Version Management
-- If no version specified, timestamp version is used (YYYYMMDD-HHMMSS)
-- Latest tag is always created alongside versioned tag
-- Version is saved to `version.txt`
-
-## Management Commands
+#### `bin/docker.sh` - Docker Production Helper  
+Manages Docker containers for production testing:
 
 ```bash
-# Start all services
-docker-compose up -d
-
-# Stop all services  
-docker-compose down
-
-# View logs
-docker-compose logs -f [service]
-
-# Rebuild and restart
-./build-all.sh && docker-compose up -d --force-recreate
-
-# View running containers
-docker-compose ps
+bin/docker.sh start         # Start all services with docker-compose
+bin/docker.sh stop          # Stop all services
+bin/docker.sh restart       # Restart services
+bin/docker.sh logs [svc]    # Show logs
+bin/docker.sh ps            # Show service status
+bin/docker.sh health        # Check service health
+bin/docker.sh shell [svc]   # Open shell in container
+bin/docker.sh clean         # Clean up containers and volumes
 ```
 
-## Development
+## Features
 
-For development with live reload:
+### 🤖 RAG Chatbot System
+- **Airplane Flying AI Chat**: Advanced RAG system with 399 aviation handbook chunks
+- **ChromaDB Integration**: Vector database with persistent storage
+- **Claude AI Integration**: Powered by Anthropic's Claude for intelligent responses
+- **Dual Chat Interfaces**: Synaptic AI Chat + Airplane Flying AI Chat
+
+### 🔧 Development Features  
+- **Hot Reload**: Development mode with live updates
+- **Health Monitoring**: Built-in health checks for all services
+- **Container Management**: Easy start/stop/restart commands
+- **Log Aggregation**: Centralized logging across all services
+
+### 🛠 Architecture
+- **Microservices**: Containerized services with Docker Compose
+- **Database**: PostgreSQL with comprehensive banking schema
+- **API Gateway**: MCP server for centralized API management  
+- **Document Processing**: OCR service for document text extraction
+- **Frontend**: Modern Angular application with responsive design
+
+## Environment Setup
+
+### Prerequisites
+- Docker and Docker Compose
+- curl (for health checks)
+- 8GB+ RAM recommended for all services
+
+### Environment Variables
 ```bash
-# Copy and modify environment
-cp .env.example .env
+# Required
+ANTHROPIC_API_KEY=your_anthropic_api_key_here
 
-# Start individual services in development mode
-cd agents && npm run dev
-cd a-tier-mcp-server && python flask_api.py
-cd ocr && python ocr_api_app/run.py
+# Optional (defaults provided)
+VERSION=2025-08-22
 ```
